@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace FinanceTracker.Api.Models
 {
@@ -10,7 +9,9 @@ namespace FinanceTracker.Api.Models
         [Required]
         public string Name { get; set; }
 
-        // Navigation property
+        public string? UserId { get; set; }  // NEW
+        public ApplicationUser User { get; set; }  // NEW
+
         public List<Transaction> Transactions { get; set; }
     }
 }

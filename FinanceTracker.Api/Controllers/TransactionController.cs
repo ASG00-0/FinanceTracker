@@ -4,9 +4,12 @@ using FinanceTracker.Api.Models;
 using Microsoft.EntityFrameworkCore;
 using FinanceTracker.Api.DTOs;
 using System.Globalization;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace FinanceTracker.Api.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class TransactionsController : ControllerBase
@@ -22,7 +25,10 @@ namespace FinanceTracker.Api.Controllers
         [HttpGet]
         public IActionResult GetTransactions()
         {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
             var transactions = _context.Transactions
+                .Where(t => t.UserId == userId)
                 .Include(t => t.Category)
                 .Select(t => new TransactionDto
                 {
@@ -39,6 +45,7 @@ namespace FinanceTracker.Api.Controllers
             return Ok(transactions);
         }
 
+
         // POST: api/transactions
         [HttpPost]
         public IActionResult CreateTransaction([FromBody] Transaction transaction)
@@ -46,16 +53,20 @@ namespace FinanceTracker.Api.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            // Check if Category exists
             var category = _context.Categories.Find(transaction.CategoryId);
             if (category == null)
                 return BadRequest("Invalid category ID");
+
+            // Get current user's ID from JWT
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            transaction.UserId = userId;
 
             _context.Transactions.Add(transaction);
             _context.SaveChanges();
 
             return CreatedAtAction(nameof(GetTransactionById), new { id = transaction.Id }, transaction);
         }
+
 
         // GET: api/transactions/{id}
         [HttpGet("{id}")]
@@ -75,18 +86,28 @@ namespace FinanceTracker.Api.Controllers
         [HttpDelete("{id}")]
         public IActionResult DeleteTransaction(int id)
         {
-            var transaction = _context.Transactions.Find(id);
-            if (transaction == null) return NotFound();
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var transaction = _context.Transactions
+                .FirstOrDefault(t => t.Id == id && t.UserId == userId);
+
+            if (transaction == null)
+                return NotFound();
 
             _context.Transactions.Remove(transaction);
             _context.SaveChanges();
 
             return NoContent();
         }
+
         [HttpGet("summary")]
         public IActionResult GetSummary()
         {
-            var transactions = _context.Transactions.ToList();
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var transactions = _context.Transactions
+                .Where(t => t.UserId == userId)
+                .ToList();
 
             var income = transactions
                 .Where(t => t.Type == "Income")
@@ -105,10 +126,15 @@ namespace FinanceTracker.Api.Controllers
             return Ok(summary);
         }
 
+
         [HttpGet("summary/monthly")]
         public IActionResult GetMonthlySummary()
         {
-            var transactions = _context.Transactions.ToList();
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var transactions = _context.Transactions
+                .Where(t => t.UserId == userId)
+                .ToList();
 
             var monthlySummaries = transactions
                 .GroupBy(t => new { t.Date.Year, t.Date.Month })
@@ -116,7 +142,7 @@ namespace FinanceTracker.Api.Controllers
                 {
                     var income = g.Where(t => t.Type == "Income").Sum(t => t.Amount);
                     var expenses = g.Where(t => t.Type == "Expense").Sum(t => t.Amount);
-                    var monthName = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+                    var monthName = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMMM yyyy");
 
                     return new MonthlySummaryDto
                     {
@@ -130,5 +156,27 @@ namespace FinanceTracker.Api.Controllers
 
             return Ok(monthlySummaries);
         }
+
+        [HttpGet("summary/by-category")]
+        [Authorize]
+        public IActionResult GetSpendingByCategory()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var spending = _context.Transactions
+                .Where(t => t.UserId == userId && t.Type == "Expense")
+                .GroupBy(t => t.Category.Name)
+                .Select(g => new CategorySpendingDto
+                {
+                    CategoryName = g.Key,
+                    TotalSpent = g.Sum(t => t.Amount)
+                })
+                .OrderByDescending(x => x.TotalSpent)
+                .ToList();
+
+            return Ok(spending);
+        }
+
     }
+
 }

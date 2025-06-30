@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ],
+  "compilerOptions": {
+    "jsx": "react-jsx", // new JSX runtime
+    "lib": [ "DOM", "DOM.Iterable", "ESNext" ],
+    "moduleResolution": "bundler",
+    "types": [ "vite/client", "react", "react-dom" ] // 👈 react type defs
+  }
+}

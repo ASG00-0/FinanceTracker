@@ -22,5 +22,8 @@ namespace FinanceTracker.Api.Models
         public int CategoryId { get; set; }
 
         public Category? Category { get; set; } // <- make it nullable
+        public string UserId { get; set; }  // Foreign key to AspNetUsers
+        public ApplicationUser User { get; set; }  // Navigation property
+
     }
 }
