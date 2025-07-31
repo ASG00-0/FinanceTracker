@@ -6,7 +6,7 @@ using System.Security.Claims;
 using System.Text;
 using FinanceTracker.Api.Models;
 using FinanceTracker.Api.DTOs;
-
+using Microsoft.Extensions.Configuration;
 
 namespace FinanceTracker.Api.Controllers
 {
@@ -16,11 +16,16 @@ namespace FinanceTracker.Api.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly IConfiguration _configuration;
 
-        public AuthController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager)
+        public AuthController(
+            UserManager<ApplicationUser> userManager,
+            SignInManager<ApplicationUser> signInManager,
+            IConfiguration configuration)
         {
             _userManager = userManager;
             _signInManager = signInManager;
+            _configuration = configuration;
         }
 
         [HttpPost("register")]
@@ -62,8 +67,12 @@ namespace FinanceTracker.Api.Controllers
                 new Claim(ClaimTypes.GivenName, user.FirstName)
             };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("super-duper-ultra-mega-secret-jwt-key"));
+            var key = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ??
+                throw new InvalidOperationException("JWT Key not configured")));
+
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
             var token = new JwtSecurityToken(
                 claims: claims,
                 expires: DateTime.UtcNow.AddDays(7),

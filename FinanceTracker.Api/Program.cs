@@ -33,7 +33,7 @@ builder.Services.AddAuthentication(options =>
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes("super-secret-jwt-key"))
+                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
     };
 });
 builder.Services.AddCors(options =>

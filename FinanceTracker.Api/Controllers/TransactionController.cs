@@ -23,13 +23,18 @@ namespace FinanceTracker.Api.Controllers
 
         // GET: api/transactions
         [HttpGet]
-        public IActionResult GetTransactions()
+        public async Task<IActionResult> GetTransactions()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            var transactions = _context.Transactions
+            // Get data first, then order client-side
+            var transactions = await _context.Transactions
                 .Where(t => t.UserId == userId)
                 .Include(t => t.Category)
+                .ToListAsync(); // First get all data async
+
+            var result = transactions
+                .OrderBy(t => t.Amount) // Then order in memory
                 .Select(t => new TransactionDto
                 {
                     Id = t.Id,
@@ -38,11 +43,11 @@ namespace FinanceTracker.Api.Controllers
                     Type = t.Type,
                     Date = t.Date,
                     CategoryId = t.CategoryId,
-                    CategoryName = t.Category.Name
+                    CategoryName = t.Category?.Name
                 })
                 .ToList();
 
-            return Ok(transactions);
+            return Ok(result);
         }
 
 
@@ -50,36 +55,90 @@ namespace FinanceTracker.Api.Controllers
         [HttpPost]
         public IActionResult CreateTransaction([FromBody] Transaction transaction)
         {
+            Console.WriteLine("---- Incoming Transaction Payload ----");
+            Console.WriteLine($"Title: {transaction.Title}");
+            Console.WriteLine($"Amount: {transaction.Amount}");
+            Console.WriteLine($"Type: {transaction.Type}");
+            Console.WriteLine($"Date: {transaction.Date}");
+            Console.WriteLine($"CategoryId: {transaction.CategoryId}");
+
             if (!ModelState.IsValid)
+            {
+                Console.WriteLine("---- ModelState Errors ----");
+                foreach (var entry in ModelState)
+                {
+                    foreach (var error in entry.Value.Errors)
+                    {
+                        Console.WriteLine($"{entry.Key}: {error.ErrorMessage}");
+                    }
+                }
                 return BadRequest(ModelState);
+            }
 
-            var category = _context.Categories.Find(transaction.CategoryId);
-            if (category == null)
-                return BadRequest("Invalid category ID");
-
-            // Get current user's ID from JWT
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null)
+            {
+                Console.WriteLine("User ID could not be extracted from token.");
+                return Unauthorized();
+            }
+
+            Console.WriteLine($"User ID from token: {userId}");
             transaction.UserId = userId;
+
+            var category = _context.Categories.FirstOrDefault(c => c.Id == transaction.CategoryId);
+            if (category == null)
+            {
+                Console.WriteLine($"No category found with ID {transaction.CategoryId}");
+                return BadRequest(new { message = "Invalid category ID." });
+            }
+
+            Console.WriteLine($"Category found: {category.Name} ({category.Type})");
 
             _context.Transactions.Add(transaction);
             _context.SaveChanges();
 
-            return CreatedAtAction(nameof(GetTransactionById), new { id = transaction.Id }, transaction);
+            var result = new TransactionDto
+            {
+                Id = transaction.Id,
+                Title = transaction.Title,
+                Amount = transaction.Amount,
+                Type = transaction.Type,
+                Date = transaction.Date,
+                CategoryId = transaction.CategoryId,
+                CategoryName = category.Name
+            };
+
+            return CreatedAtAction(nameof(GetTransactionById), new { id = transaction.Id }, result);
         }
+
+
 
 
         // GET: api/transactions/{id}
         [HttpGet("{id}")]
         public IActionResult GetTransactionById(int id)
         {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
             var transaction = _context.Transactions
                 .Include(t => t.Category)
-                .FirstOrDefault(t => t.Id == id);
+                .FirstOrDefault(t => t.Id == id && t.UserId == userId);
 
             if (transaction == null)
                 return NotFound();
 
-            return Ok(transaction);
+            var result = new TransactionDto
+            {
+                Id = transaction.Id,
+                Title = transaction.Title,
+                Amount = transaction.Amount,
+                Type = transaction.Type,
+                Date = transaction.Date,
+                CategoryId = transaction.CategoryId,
+                CategoryName = transaction.Category?.Name
+            };
+
+            return Ok(result);
         }
 
         // DELETE: api/transactions/{id}
@@ -171,7 +230,8 @@ namespace FinanceTracker.Api.Controllers
                     CategoryName = g.Key,
                     TotalSpent = g.Sum(t => t.Amount)
                 })
-                .OrderByDescending(x => x.TotalSpent)
+                .ToList() // Execute query first
+                .OrderByDescending(x => x.TotalSpent) // Then order in memory
                 .ToList();
 
             return Ok(spending);

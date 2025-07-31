@@ -9,9 +9,12 @@ namespace FinanceTracker.Api.Models
         [Required]
         public string Name { get; set; }
 
+        [Required]
+        [StringLength(20)]
+        public string Type { get; set; }
         public string? UserId { get; set; }  // NEW
-        public ApplicationUser User { get; set; }  // NEW
+        public ApplicationUser? User { get; set; }  // NEW
 
-        public List<Transaction> Transactions { get; set; }
+        public List<Transaction>? Transactions { get; set; }
     }
 }

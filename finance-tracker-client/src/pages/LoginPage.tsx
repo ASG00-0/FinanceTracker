@@ -1,8 +1,10 @@
 ﻿import { Bounce, BlurText } from '@appletosolutions/reactbits';
 import { useState } from 'react';
 import { authApi } from '../services/apiService'; // Adjust path as needed
+import { useNavigate } from 'react-router-dom'; // Add this import
 
 export default function LoginPage() {
+    const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -21,10 +23,10 @@ export default function LoginPage() {
             const response = await authApi.login({ email, password });
 
             // Store JWT token
-            localStorage.setItem('authToken', response.token);
+            localStorage.setItem('token', response.token);
             // Redirect to dashboard or main app
             console.log('Login successful:', response);
-            // window.location.href = '/dashboard'; // or use react-router
+            navigate('/dashboard', { replace: true });
 
         } catch (err: any) {
             setError(err.response?.data?.message || 'Login failed. Please try again.');
